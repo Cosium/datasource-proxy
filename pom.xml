@@ -25,19 +25,6 @@
     <tag>datasource-proxy-1.4.6</tag>
   </scm>
 
-  <distributionManagement>
-    <repository>
-      <id>cosium-repo</id>
-      <name>Internal Release Repository</name>
-      <url>https://repo.cosium.com/repository/internal/</url>
-    </repository>
-    <snapshotRepository>
-      <id>cosium-repo-snapshots</id>
-      <name>Internal Snapshot Repository</name>
-      <url>https://repo.cosium.com/repository/snapshots/</url>
-    </snapshotRepository>
-  </distributionManagement>
-
   <developers>
     <developer>
       <id>tadaya</id>
