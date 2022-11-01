@@ -35,6 +35,21 @@ public class RepeatableReadResultSetProxyLogic implements ResultSetProxyLogic {
             }
     );
 
+    private static final Map<String, Method> NUMBER_X_VALUE_METHOD_PER_NUMERIC_TYPE = Collections.unmodifiableMap(new HashMap<String, Method>() {
+        private static final String METHOD_SUFFIX = "Value";
+        {
+            for (Method method : Number.class.getDeclaredMethods()) {
+                String methodName = method.getName();
+                if (!methodName.endsWith(METHOD_SUFFIX)) {
+                    continue;
+                }
+                put(methodName.substring(0, methodName.indexOf(METHOD_SUFFIX)), method);
+            }
+        }
+    });
+
+    private static final Object UNCONSUMED_RESULT_COLUMN = new Object();
+
     public static class Builder {
         private ResultSet resultSet;
         private ConnectionInfo connectionInfo;
@@ -147,7 +162,7 @@ public class RepeatableReadResultSetProxyLogic implements ResultSetProxyLogic {
                 return wasNull;
             }
             if (isGetMethod(method)) {
-                return handleGetMethodUsingCache(args);
+                return handleGetMethodUsingCache(methodName, args);
             }
             if (isNextMethod(method)) {
                 return handleNextMethodUsingCache();
@@ -218,17 +233,29 @@ public class RepeatableReadResultSetProxyLogic implements ResultSetProxyLogic {
         }
     }
 
-    private Object handleGetMethodUsingCache(Object[] args) throws SQLException {
+    private Object handleGetMethodUsingCache(String methodName, Object[] args) throws SQLException, InvocationTargetException, IllegalAccessException {
         if (resultPointer == -1) {
             throw new SQLException("Result set not advanced. Call next before any get method!");
         } else if (resultPointer < cachedResults.size()) {
             int columnIndex = determineColumnIndex(args);
-            Object value = currentResult[columnIndex];
-            wasNull = value == null;
-            return value;
+            Object columnValue = currentResult[columnIndex];
+            wasNull = columnValue == null;
+            if (!(columnValue instanceof Number)) {
+                return columnValue;
+            }
+            return convertNumberToExpectedType(methodName, (Number) columnValue);
         } else {
             throw new SQLException(format("Result set exhausted. There were %d result(s) only", cachedResults.size()));
         }
+    }
+
+    private Object convertNumberToExpectedType(String getMethodName, Number value) throws InvocationTargetException, IllegalAccessException {
+        String targetTypeName = getMethodName.substring("get".length()).toLowerCase();
+        Method converter = NUMBER_X_VALUE_METHOD_PER_NUMERIC_TYPE.get(targetTypeName);
+        if (converter == null) {
+            return value;
+        }
+        return converter.invoke(value);
     }
 
     private boolean isGetMethod(Method method) {
